@@ -166,6 +166,5 @@ module DiffTree {
             //  Compute the new diffRoot
             diffRoot := 0 ;
         }
-
     } 
 }
