@@ -52,12 +52,23 @@ module DiffTree {
                 && isDecoratedWithDiff(rc)
     }
 
+    function getDiffOfNode(root: Tree<int>): int
+        requires isCompleteTree(root)
+        decreases root
+        {
+            match root
+                case Leaf(v, _, _) => root.v
+                case Node(v, lc, rc, _, _) => getDiffOfNode(lc) - getDiffOfNode(rc)
+        }
+
+
     /**
      *  Incremental algorithm.
      *
      *  @todo   Add data structures and complete method add to
      *          correctly compute diffRoot. 
      */
+
     class IntTree {
 
         /**  The root tracking the Merkle Tree. */
@@ -67,7 +78,7 @@ module DiffTree {
         var h : nat 
 
         /** diffRoot, the value of diff on the root. */
-        var diffRoot : int
+        ghost var diffRoot : int
 
         /** Number of elements in the tree. */
         // var counter : nat
@@ -119,6 +130,7 @@ module DiffTree {
             ensures |collectLeaves(buildMerkle(l, h))| == power2(h - 1)
             ensures isDecoratedWithDiff(buildMerkle(l, h))
             ensures treeLeftmostLeavesMatchList(l, buildMerkle(l, h), 0)
+            
 
         /** 
          *  Add element e to the tree.
@@ -154,17 +166,29 @@ module DiffTree {
             ensures diffRoot == root.v
 
             // ensures isValid()
-
             modifies this
         {
             //  Update store
             store := store + [ e ] ;
-            
             //  Define new tree for updated store
             root := buildMerkle(store, h);
+            
+            assert isDecoratedWithDiff(root);
+            diffRoot := getDiffOfNode(root);
+            assert isDecoratedWithDiff(root);
+            assert test(diffRoot, root);
 
+            assert diffRoot == root.v;
             //  Compute the new diffRoot
-            diffRoot := 0 ;
+            // diffRoot := 0 ;
         }
+
+
+        function testDiffRoot(diff: int, root: Tree<int>): bool
+            {
+                match root
+                    case Leaf(v,_,_) => root.v == v
+                    case Node(v,lc,rc,_,_) => diff == lc.v - rc.v
+            }
     } 
 }
