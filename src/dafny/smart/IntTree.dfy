@@ -37,6 +37,11 @@ module DiffTree {
         a - b
     }
 
+    function method sum(a:int, b: int): int 
+    {
+        a + b
+    }
+
     /**
      *  Check that a decorated tree correctly stores the diff attribute. 
      */

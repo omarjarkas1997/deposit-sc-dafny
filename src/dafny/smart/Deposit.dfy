@@ -57,23 +57,23 @@ module DepositTree {
         var zerohashes: seq<int>
         var deposit_count: int
 
-        var branch: array<int>
+        var branch: seq<int>
 
         constructor()
             ensures height(root) == TREE_HEIGHT
-            ensures |zerohashes|== branch.Length == TREE_HEIGHT
+            ensures |zerohashes|== |branch| == TREE_HEIGHT
             ensures isDecoratedWithDiff(root)
             ensures isCompleteTree(root)
             ensures root.v == getDiffOfNode(root)
-            ensures zerohashes == initFun(TREE_HEIGHT, 0)
-
+            ensures zerohashes == initFun(TREE_HEIGHT, 1)
+            ensures branch == [1]
 
         predicate Valid()
         reads this
             {
                 deposit_count < power2(TREE_HEIGHT) - 1 &&
                 isCompleteTree(root) &&
-                branch.Length == TREE_HEIGHT == |zerohashes| &&
+                |branch| == TREE_HEIGHT == |zerohashes| &&
                 TREE_HEIGHT == height(root) && isDecoratedWithDiff(root) &&
                 root.v == getDiffOfNode(root)
             }
@@ -85,30 +85,31 @@ module DepositTree {
         method initializeZeroHashes()
         requires Valid()
         requires TREE_HEIGHT > 1
-        modifies branch
-        requires branch.Length == TREE_HEIGHT
-        requires forall i :: 0 <= i < branch.Length ==> branch[i] == 0
+        requires |branch| == TREE_HEIGHT
+        requires forall i :: 0 <= i < |branch| ==> branch[i] == 0
         ensures Valid()
-        ensures forall i :: 0 <= i < branch.Length - 1 ==> branch[i+1] == diff(branch[i],branch[i])
+        ensures forall i :: 0 <= i < |branch| - 1 ==> branch[i+1] == old(branch[i]) + sum(branch[i],branch[i])
         {
-
+  
             var x := 0;
-
+            var branch1 := [1];
             while x != TREE_HEIGHT - 1
                 invariant 0 <= x < TREE_HEIGHT
-                invariant forall i :: 0 <= i < x ==> branch[i+1] == diff(branch[i],branch[i])
-                invariant forall i :: x < i < branch.Length ==> branch[i] == 0
+                invariant forall i :: x < i < |branch1| ==> branch1[i] == 0
+                invariant forall i :: 0 <= i < x ==> branch1[i+1] == sum(branch1[i],branch1[i])
+                invariant forall i:: 0 <= i < x ==> branch1[i+1] == power2(branch1[i])
                 decreases TREE_HEIGHT - x 
                 {
-                    branch[x+1] := diff(branch[x],branch[x]);
+                    branch := branch + [sum(branch1[x],branch1[x])];
                     x := x + 1;
                 }
                 assert |zerohashes| == TREE_HEIGHT;
-                assert branch.Length == TREE_HEIGHT;
+                assert |branch| == TREE_HEIGHT;
                 assert |zerohashes| == TREE_HEIGHT;
                 var zh := castSeqToArray(zerohashes);
                 assert zh.Length == |zerohashes|;
-                assert zh == branch;
+                assert |zerohashes| == |branch|;
+                assert zerohashes == branch;
 
         }
 
@@ -116,7 +117,7 @@ module DepositTree {
         function initFun(length: nat, init: int): seq<int>
         ensures |initFun(length, init)| == length
         {
-            if length == 0 then [] else [init] + initFun(length-1, diff(init,init))
+            if length == 0 then [] else [init] + initFun(length-1, sum(init,init))
         }
 
         method castSeqToArray(s:seq<int>) returns (a: array<int>)
@@ -158,7 +159,6 @@ module DepositTree {
         method deposit(value: int) returns (t: int)
             requires Valid()
             modifies this
-            modifies branch
             ensures Valid()
             {
 
@@ -178,7 +178,7 @@ module DepositTree {
                         size := size / 2;
                         n := n + 1;
                     }
-                    assert TREE_HEIGHT == branch.Length;
+                    assert TREE_HEIGHT == |branch|;
                     branch[n] := value;
             }
 
@@ -204,6 +204,7 @@ module DepositTree {
         method deposit_root() returns (r: int)
             requires Valid()
             ensures Valid()
+            ensures r == root.v
             {
                 
                 var n := 0;
