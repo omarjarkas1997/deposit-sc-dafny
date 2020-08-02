@@ -32,7 +32,7 @@ module DiffTree {
      *          isDecoratedWithDiff, but we may use another 
      *          function later, so we factor it out.
      */
-    function diff(a: int, b : int) : int 
+    function method diff(a: int, b : int) : int 
     {
         a - b
     }
@@ -130,6 +130,7 @@ module DiffTree {
             ensures |collectLeaves(buildMerkle(l, h))| == power2(h - 1)
             ensures isDecoratedWithDiff(buildMerkle(l, h))
             ensures treeLeftmostLeavesMatchList(l, buildMerkle(l, h), 0)
+            ensures getDiffOfNode(buildMerkle(l,h)) == buildMerkle(l,h).v 
             
 
         /** 
@@ -176,7 +177,7 @@ module DiffTree {
             assert isDecoratedWithDiff(root);
             diffRoot := getDiffOfNode(root);
             assert isDecoratedWithDiff(root);
-            assert test(diffRoot, root);
+            assert testDiffRoot(diffRoot, root);
 
             assert diffRoot == root.v;
             //  Compute the new diffRoot

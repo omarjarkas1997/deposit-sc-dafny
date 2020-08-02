@@ -14,12 +14,15 @@
 
 include "Trees.dfy"
 include "MerkleTrees.dfy"
+include "IntTree.dfy"
+include "Helpers.dfy"
 
 module DepositTree {
 
     import opened Trees
     import opened MerkleTrees
-
+    import opened DiffTree
+    import opened Helpers
     /** 
      *  Attribute hash.
      *
@@ -36,19 +39,6 @@ module DepositTree {
 
             case Node(v, lc, rc, _, _) => v == hash(lc.v, rc.v)
     }
-        function method diff(a: int, b : int) : int 
-    {
-        a - b
-    }
-
-        function power2(n : nat): nat 
-        ensures power2(n) >= 1
-        ensures n >= 1 ==> power2(n) >= 2 
-
-        decreases n
-    {
-        if n == 0 then 1 else 2 * power2(n - 1)
-    }
     /**
      *  Incremental algorithm.
      */
@@ -64,44 +54,92 @@ module DepositTree {
 
         ghost var root: Tree<int>
         const TREE_HEIGHT: nat
-        var zerohashes: array<int>
-
+        var zerohashes: seq<int>
         var deposit_count: int
 
         var branch: array<int>
+
+        constructor()
+            ensures height(root) == TREE_HEIGHT
+            ensures |zerohashes|== branch.Length == TREE_HEIGHT
+            ensures isDecoratedWithDiff(root)
+            ensures isCompleteTree(root)
+            ensures root.v == getDiffOfNode(root)
+            ensures zerohashes == initFun(TREE_HEIGHT, 0)
+
 
         predicate Valid()
         reads this
             {
                 deposit_count < power2(TREE_HEIGHT) - 1 &&
-                branch.Length == TREE_HEIGHT == zerohashes.Length &&
-                TREE_HEIGHT == height(root) 
+                isCompleteTree(root) &&
+                branch.Length == TREE_HEIGHT == |zerohashes| &&
+                TREE_HEIGHT == height(root) && isDecoratedWithDiff(root) &&
+                root.v == getDiffOfNode(root)
             }
 
+
+
+
+        // method to initialize the branches array
         method initializeZeroHashes()
         requires Valid()
         requires TREE_HEIGHT > 1
-        modifies zerohashes
-        requires zerohashes.Length == TREE_HEIGHT
-        requires forall i :: 0 <= i < zerohashes.Length ==> zerohashes[i] == 0
+        modifies branch
+        requires branch.Length == TREE_HEIGHT
+        requires forall i :: 0 <= i < branch.Length ==> branch[i] == 0
         ensures Valid()
-        ensures forall i :: 0 <= i < zerohashes.Length - 1 ==> zerohashes[i+1] == diff(zerohashes[i],zerohashes[i])
+        ensures forall i :: 0 <= i < branch.Length - 1 ==> branch[i+1] == diff(branch[i],branch[i])
         {
 
             var x := 0;
 
             while x != TREE_HEIGHT - 1
                 invariant 0 <= x < TREE_HEIGHT
-                invariant forall i :: 0 <= i < x ==> zerohashes[i+1] == diff(zerohashes[i],zerohashes[i])
-                invariant forall i :: x < i < zerohashes.Length ==> zerohashes[i] == 0
+                invariant forall i :: 0 <= i < x ==> branch[i+1] == diff(branch[i],branch[i])
+                invariant forall i :: x < i < branch.Length ==> branch[i] == 0
                 decreases TREE_HEIGHT - x 
                 {
-                    zerohashes[x+1] := diff(zerohashes[x],zerohashes[x]);
+                    branch[x+1] := diff(branch[x],branch[x]);
                     x := x + 1;
                 }
+                assert |zerohashes| == TREE_HEIGHT;
+                assert branch.Length == TREE_HEIGHT;
+                assert |zerohashes| == TREE_HEIGHT;
+                var zh := castSeqToArray(zerohashes);
+                assert zh.Length == |zerohashes|;
+                assert zh == branch;
 
         }
 
+        // Function to initiale the zerohashes array
+        function initFun(length: nat, init: int): seq<int>
+        ensures |initFun(length, init)| == length
+        {
+            if length == 0 then [] else [init] + initFun(length-1, diff(init,init))
+        }
+
+        method castSeqToArray(s:seq<int>) returns (a: array<int>)
+            requires |s| != 0
+            ensures |s| == a.Length
+            {
+                var i := 0;
+                var seqLen := |s|;
+                var arr := new int[seqLen];
+
+                while i != |s|
+                    invariant 0 <= i <= |s|
+                    decreases |s| - i
+                    {
+                        arr[i] := s[i];
+                        i := i + 1;
+                    }
+                    a := arr;
+            }
+
+
+        // Using this insertion algorithm allows branches[] to maintain a proof path of
+        // the most recent insertion
         /*
         * fun deposit(value: int) -> unit:
         *     assert deposit_count < 2^TREE_HEIGHT - 1
@@ -127,22 +165,24 @@ module DepositTree {
                 var n := 0;
                 deposit_count := deposit_count + 1;
                 var value1 := value;
-                var size;
+                var size := deposit_count;
                 while n != TREE_HEIGHT
                     invariant 0 <= n <= TREE_HEIGHT 
                     invariant deposit_count < power2(TREE_HEIGHT) 
                     decreases TREE_HEIGHT - n 
                     {
-                        if deposit_count % 2 == 1 {
+                        if size % 2 == 1 {
                             break;
                         }
                         value1 := diff(branch[n], value);
-                        size := deposit_count / 2;
+                        size := size / 2;
                         n := n + 1;
                     }
                     assert TREE_HEIGHT == branch.Length;
                     branch[n] := value;
             }
+
+        // We need a lemma to prove the n will not reach TREE_HEIGHT
 
         /*
         * fun __deposit_root() -> int:
@@ -159,6 +199,8 @@ module DepositTree {
         *     return root
         */
 
+        // once the deposit threshold is met
+        // it calculates the root from branches[]
         method deposit_root() returns (r: int)
             requires Valid()
             ensures Valid()
@@ -179,8 +221,10 @@ module DepositTree {
                         n := n + 1;
                         
                     }
-                    assert 
-                    return r;
+                    assert isDecoratedWithDiff(root);
+                    assert r == getDiffOfNode(root);
+                    assert r == root.v;
+                    return r ;
             }
 
 } 
